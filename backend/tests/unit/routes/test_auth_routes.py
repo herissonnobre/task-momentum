@@ -243,3 +243,67 @@ def test_login_incorrect_password(testing_client: FlaskClient) -> None:
                                                             'password': 'IncorrectPassword@123'})
         assert response.status_code == 401
         assert response.json == {'message': 'Invalid credentials.'}
+
+
+# Password Recovery Tests
+
+def test_password_recovery_request(testing_client: FlaskClient) -> None:
+    with patch('app.routes.auth.request_password_reset') as mock_request:
+        mock_request.return_value = ({'message': 'Password reset email sent.'}, 200)
+        response = testing_client.post('/auth/password-reset/request', json={'email': 'test@example.com'})
+        assert response.status_code == 200
+        assert response.json == {'message': 'Password reset email sent.'}
+
+
+def test_password_recovery_request_missing_email(testing_client: FlaskClient) -> None:
+    with patch('app.routes.auth.request_password_reset') as mock_request:
+        mock_request.return_value = ({'message': 'Email is required.'}, 400)
+        response = testing_client.post('/auth/password-reset/request', json={'email': ''})
+        assert response.status_code == 400
+        assert response.json == {'message': 'Email is required.'}
+
+
+def test_password_recovery_request_invalid_email_format(testing_client: FlaskClient) -> None:
+    with patch('app.routes.auth.request_password_reset') as mock_request:
+        mock_request.return_value = ({'message': 'Invalid email format.'}, 400)
+        response = testing_client.post('/auth/password-reset/request', json={'email': 'invalid-email'})
+        assert response.status_code == 400
+        assert response.json == {'message': 'Invalid email format.'}
+
+
+def test_password_recovery_request_non_existent_user(testing_client: FlaskClient) -> None:
+    with patch('app.routes.auth.request_password_reset') as mock_request:
+        mock_request.return_value = ({'message': 'Email not found.'}, 404)
+        response = testing_client.post('/auth/password-reset/request', json={'email': 'nonexistent@example.com'})
+        assert response.status_code == 404
+        assert response.json == {'message': 'Email not found.'}
+
+
+def test_password_reset(testing_client: FlaskClient) -> None:
+    """
+    Test resetting the password with a valid token.
+    """
+    with patch('app.routes.auth.reset_password') as mock_reset:
+        mock_reset.return_value = ({'message': 'Password reset successfully.'}, 200)
+        response = testing_client.post('/auth/password-reset/reset', json={'token': 'valid_token',
+                                                                           'password': 'NewSecurePass@123'})
+        assert response.status_code == 200
+        assert response.json == {'message': 'Password reset successfully.'}
+
+
+def test_password_reset_invalid_token(testing_client: FlaskClient) -> None:
+    with patch('app.routes.auth.reset_password') as mock_reset:
+        mock_reset.return_value = ({'message': 'Invalid or expired token.'}, 400)
+        response = testing_client.post('/auth/password-reset/reset', json={'token': 'invalid_token',
+                                                                           'password': 'NewSecurePass@123'})
+        assert response.status_code == 400
+        assert response.json == {'message': 'Invalid or expired token.'}
+
+
+def test_password_reset_weak_password(testing_client: FlaskClient) -> None:
+    with patch('app.routes.auth.reset_password') as mock_reset:
+        mock_reset.return_value = ({'message': 'Password does not meet security requirements.'}, 400)
+        response = testing_client.post('/auth/password-reset/reset', json={'token': 'valid_token',
+                                                                           'password': 'weak'})
+        assert response.status_code == 400
+        assert response.json == {'message': 'Password does not meet security requirements.'}
