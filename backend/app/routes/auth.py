@@ -10,7 +10,7 @@ Decorators:
 """
 from flask import Blueprint, Response
 
-from app.controllers.auth_controller import register, login
+from app.controllers.auth_controller import register, login, request_password_reset, reset_password
 
 auth_blueprint = Blueprint('auth', __name__)
 
@@ -43,3 +43,32 @@ def login_route() -> tuple[Response, int]:
         - tuple[Response, int]: JSON response with JWT token and status code.
     """
     return login()
+
+
+@auth_blueprint.route('/password-reset', methods=['POST'])
+def request_password_reset_route() -> tuple[Response, int]:
+    """
+    Initiates the password reset process by sending an email with a reset token.
+
+    Request body (JSON):
+        - email (str): The email of the user.
+
+    Returns:
+        - tuple[Response, int]: JSON response and status code.
+    """
+    return request_password_reset()
+
+
+@auth_blueprint.route('/password-reset', methods=['PUT'])
+def reset_password_route() -> tuple[Response, int]:
+    """
+    Completes the password reset process using the token provided via email.
+
+    Request body (JSON):
+        - token (str): The password reset token.
+        - new_password (str): The new password.
+
+    Returns:
+        - tuple[Response, int]: JSON response and status code.
+    """
+    return reset_password()
