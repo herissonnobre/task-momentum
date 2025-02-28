@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 from flask import Flask
 
-from app.controllers.auth_controller import register, login
+from app.controllers.auth_controller import register, login, request_password_reset, reset_password
 from app.extensions import db
 from app.routes import auth_blueprint
 
@@ -299,3 +299,100 @@ def test_login_incorrect_password(testing_app) -> None:
 
         assert status == 401
         assert response.json == {'message': 'Invalid credentials.'}
+
+
+def test_request_password_reset_success(testing_app) -> None:
+    with patch('app.controllers.auth_controller.generate_password_reset_token') as mock_generate_password_reset_token:
+        mock_generate_password_reset_token.return_value = ({"message": "Password reset email sent."}, 200)
+
+        with testing_app.test_request_context("/auth/password-reset", method="POST",
+                                              json={'email': 'test@example.com'},
+                                              headers={"Content-Type": "application/json"}):
+            response, status = request_password_reset()
+
+        assert status == 200
+        assert response.json == {'message': 'Password reset email sent.'}
+
+
+def test_request_password_reset_missing_email(testing_app) -> None:
+    with testing_app.test_request_context("/auth/password-reset", method="POST",
+                                          json={}, headers={"Content-Type": "application/json"}):
+        response, status = request_password_reset()
+
+    assert status == 400
+    assert response.json == {'message': "Email is required."}
+
+
+def test_request_password_reset_invalid_email_format(testing_app) -> None:
+    with patch('app.controllers.auth_controller.generate_password_reset_token') as mock_generate_password_reset_token:
+        mock_generate_password_reset_token.return_value = ({"message": "Invalid email format."}, 400)
+
+        with testing_app.test_request_context("/auth/password-reset", method="POST",
+                                              json={'email': 'invalid-email'},
+                                              headers={"Content-Type": "application/json"}):
+            response, status = request_password_reset()
+
+        assert status == 400
+        assert response.json == {'message': 'Invalid email format.'}
+
+
+def test_request_password_reset_non_existent_user(testing_app) -> None:
+    with patch('app.controllers.auth_controller.generate_password_reset_token') as mock_generate_password_reset_token:
+        mock_generate_password_reset_token.return_value = ({'message': 'Email not found.'}, 404)
+
+        with testing_app.test_request_context("/auth/password-reset", method="POST",
+                                              json={'email': 'nonexistent@example.com'},
+                                              headers={"Content-Type": "application/json"}):
+            response, status = request_password_reset()
+
+        assert status == 404
+        assert response.json == {'message': 'Email not found.'}
+
+
+def test_reset_password_success(testing_app) -> None:
+    with patch('app.controllers.auth_controller.reset_user_password') as mock_reset_user_password:
+        mock_reset_user_password.return_value = ({"message": "Password reset successfully."}, 200)
+
+        with testing_app.test_request_context("/auth/password-reset", method="PUT",
+                                              json={'token': 'valid_token', 'new_password': 'NewSecurePassword@123'},
+                                              headers={"Content-Type": "application/json"}):
+            response, status = reset_password()
+
+        assert status == 200
+        assert response.json == {'message': 'Password reset successfully.'}
+
+
+def test_reset_password_missing_fields(testing_app) -> None:
+    with testing_app.test_request_context("/auth/password-reset", method="PUT",
+                                          json={}, headers={"Content-Type": "application/json"}):
+        response, status = reset_password()
+
+    assert status == 400
+    assert response.json == {
+        'message': "Request must have a body with 'token' and 'new_password' fields as raw JSON data."}
+
+
+def test_reset_password_invalid_token(testing_app) -> None:
+    with patch('app.controllers.auth_controller.reset_user_password') as mock_reset_user_password:
+        mock_reset_user_password.return_value = ({"message": "Invalid or expired token."}, 400)
+
+        with testing_app.test_request_context("/auth/password-reset", method="PUT",
+                                              json={'token': 'invalid_token', 'new_password': 'NewSecurePassword@123'},
+                                              headers={"Content-Type": "application/json"}):
+            response, status = reset_password()
+
+        assert status == 400
+        assert response.json == {'message': 'Invalid or expired token.'}
+
+
+def test_reset_password_unsecure_password(testing_app) -> None:
+    with patch('app.controllers.auth_controller.reset_user_password') as mock_reset_user_password:
+        mock_reset_user_password.return_value = ({"message": "Password must meet security requirements."}, 400)
+
+        with testing_app.test_request_context("/auth/password-reset", method="PUT",
+                                              json={'token': 'valid_token', 'new_password': '123'},
+                                              headers={"Content-Type": "application/json"}):
+            response, status = reset_password()
+
+        assert status == 400
+        assert response.json == {'message': 'Password must meet security requirements.'}
