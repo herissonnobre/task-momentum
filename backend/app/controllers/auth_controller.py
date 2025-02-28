@@ -7,7 +7,8 @@ Functions:
 """
 from flask import request, jsonify
 
-from app.services.auth_service import register_user, authenticate_user
+from app.services.auth_service import register_user, authenticate_user, generate_password_reset_token, \
+    reset_user_password
 
 
 def register():
@@ -66,5 +67,54 @@ def login():
     data = request.get_json()
 
     response, status = authenticate_user(data['email'], data['password'])
+
+    return jsonify(response), status
+
+
+def request_password_reset():
+    """
+    Initiates the password reset process.
+
+    Request body (JSON):
+        - email (str): Email of the user requesting password reset.
+
+    Returns:
+        - tuple: (JSON response, HTTP status code).
+    """
+    if not request.is_json:
+        return jsonify({'message': "Request body must be in JSON format."}), 400
+
+    data = request.get_json()
+
+    if not data or 'email' not in data:
+        return jsonify({'message': "Email is required."}), 400
+
+    response, status = generate_password_reset_token(data['email'])
+
+    return jsonify(response), status
+
+
+def reset_password():
+    """
+    Handles password reset.
+
+    Request body (JSON):
+        - token (str): Token for password reset verification.
+        - new_password (str): New password to be set.
+
+    Returns:
+        - tuple: (JSON response, HTTP status code).
+    """
+    if not request.is_json:
+        return jsonify(
+            {'message': "Request must have a body with 'token' and 'new_password' fields as raw JSON data."}), 400
+
+    data = request.get_json()
+
+    if not data or 'token' not in data or 'new_password' not in data:
+        return jsonify(
+            {'message': "Request must have a body with 'token' and 'new_password' fields as raw JSON data."}), 400
+
+    response, status = reset_user_password(data['token'], data['new_password'])
 
     return jsonify(response), status
